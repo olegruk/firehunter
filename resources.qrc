@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/firehunter" >
+        <file>firehunter.png</file>
+    </qresource>
+</RCC>

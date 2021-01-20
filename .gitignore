@@ -1,0 +1,10 @@
+__pycache__/__init__.cpython-37.pyc
+__pycache__/firehunter_dialog.cpython-37.pyc
+__pycache__/firehunter_processing_algorithm.cpython-37.pyc
+__pycache__/firehunter_processing_provider.cpython-37.pyc
+__pycache__/firehunter.cpython-37.pyc
+__pycache__/mosaic_processing_algorithm.cpython-37.pyc
+__pycache__/mosaic_processing_provider.cpython-37.pyc
+__pycache__/osm_downloader.cpython-37.pyc
+__pycache__/rectangleAreaTool.cpython-37.pyc
+__pycache__/resources.cpython-37.pyc
