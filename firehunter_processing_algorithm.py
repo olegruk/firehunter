@@ -38,6 +38,7 @@ import ee
 class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
     EXTENT = 'EXTENT'
+    DATEFROMPOINT = 'DATEFROMPOINT'
     INPUT = 'INPUT'
     DATE1 = 'DATE1'
     INTERVAL = 'INTERVAL'
@@ -56,6 +57,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
         self.bandlist = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']
         self.addParameter(QgsProcessingParameterExtent(self.EXTENT, 'Mosaic extent:'))
+        self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates from points layer?:', defaultValue=True, optional=False))
         self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer', types=[QgsProcessing.TypeVectorPoint]))
         self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):'))
         self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
@@ -72,7 +74,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
        
     def processAlgorithm(self, parameters, context, feedback):
         Processing.initialize()
-        import processing
+        #import processing
 
         #fmt = self.parameterAsEnum(parameters, self.FORMAT, context)
         #scale = int(self.parameterAsDouble(parameters, self.SCALE, context)/100)
@@ -83,31 +85,14 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         bbox_prj = self.bbox_for_ee_collection(bbox, crs, final_crs)
         aoi=ee.FeatureCollection(ee.Geometry.Polygon(bbox_prj))
 
-        point_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
-        bbox_geom = self.parameterAsExtentGeometry(parameters, self.EXTENT, context, crs)
-        uri_str = "Polygon?crs=" + crs.authid() + "&field=name:string(5)"
-        tmp_layer = QgsVectorLayer(uri_str, "tmp_layer", "memory")
-        tmp_provider = tmp_layer.dataProvider()
-        feat = QgsFeature()
-        feat.setGeometry(bbox_geom)
-        feat.setAttributes(['temp'])
-        tmp_provider.addFeatures([feat])
-
-        result = processing.run('qgis:intersection', {'INPUT': point_layer, 'OVERLAY': tmp_layer, 'INPUT_FIELDS': ['acq_date', 'date_time'], 'OUTPUT': 'memory:'})
-        features = result['OUTPUT'].getFeatures()
-        f_count = result['OUTPUT'].featureCount()
-        date_list = []
-        total = 100.0 / f_count if f_count else 0
-        for current, f in enumerate(features):
-            if feedback.isCanceled():
-                break
-            date_list.append(f.attribute('acq_date'))
-            feedback.setProgress(int(current * total))
-        max_date = max(date_list)
-        min_date = min(date_list)
-        
         interval = self.parameterAsInt(parameters, self.INTERVAL, context)
+        get_date_from_point = self.parameterAsBoolean(parameters, self.DATEFROMPOINT, context)
         date1 = self.parameterAsDateTime(parameters, self.DATE1, context)
+        if get_date_from_point:
+            point_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
+            bbox_geom = self.parameterAsExtentGeometry(parameters, self.EXTENT, context, crs)
+            date1, date2 = self.date_from_point(point_layer, bbox_geom, date1, crs, feedback)
+            
         date_end = date1.toString("yyyy-MM-dd")
         date_start = date1.addDays(-interval).toString("yyyy-MM-dd")
 
@@ -146,8 +131,38 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 #        #добавим на карту
 #        self.addLayer(im2,{},layer_name_2,is_visible)
 
-        return {self.OUTPUT: [date_start, date_end, col_size, f_count, date_list, min_date, max_date]}
-     
+        return {self.OUTPUT: [date_start, date_end, col_size]}
+
+    def date_from_point(self, point_layer, bbox_geom, date, crs, feedback):
+        import processing
+        uri_str = "Polygon?crs=" + crs.authid() + "&field=name:string(5)"
+        tmp_layer = QgsVectorLayer(uri_str, "tmp_layer", "memory")
+        tmp_provider = tmp_layer.dataProvider()
+        feat = QgsFeature()
+        feat.setGeometry(bbox_geom)
+        feat.setAttributes(['temp'])
+        tmp_provider.addFeatures([feat])
+
+        result = processing.run('qgis:intersection', {'INPUT': point_layer, 'OVERLAY': tmp_layer, 'INPUT_FIELDS': ['acq_date', 'date_time'], 'OUTPUT': 'memory:'})
+        features = result['OUTPUT'].getFeatures()
+        f_count = result['OUTPUT'].featureCount()
+        date_list = []
+        total = 100.0 / f_count if f_count else 0
+        for current, f in enumerate(features):
+            if feedback.isCanceled():
+                break
+            #date_list.append(f.attribute('acq_date'))
+            date_list.append(f.attribute('date_time'))
+            feedback.setProgress(int(current * total))
+        if date_list:
+            max_date = max(date_list)
+            min_date = min(date_list)
+        else:
+            max_date = date
+            min_date = date
+
+        return max_date, min_date
+
     def bbox_for_ee_collection(self, bbox, in_crs, out_crs):
         proj_in = pyproj.Proj(init=in_crs.authid())
         proj_out = pyproj.Proj(init=out_crs.authid())
