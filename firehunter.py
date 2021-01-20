@@ -47,12 +47,15 @@ class FireHunter:
         if startX == endX and startY == endY:
             return
         extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
-        self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
+        #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
+        self.iface.mapCanvas().setMapTool(self.prevMapTool)
         processing.execAlgorithmDialog('firehunter:S2_image', {'EXTENT':extent})
 
     def runRectangle(self, b):
         if b:
+            self.prevMapTool = self.iface.mapCanvas().mapTool()
             self.iface.mapCanvas().setMapTool(self.rectangleAreaTool)
         else:
-            self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
+            #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
+            self.iface.mapCanvas().setMapTool(self.prevMapTool)
 

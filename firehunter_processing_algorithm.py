@@ -24,6 +24,7 @@ from qgis.core import (QgsProject,
                        QgsProcessing,
                        QgsProcessingParameterExtent,
                        QgsProcessingParameterFeatureSource,
+                       QgsProcessingParameterVectorLayer,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterBoolean,
@@ -57,18 +58,19 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
         self.bandlist = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']
         self.addParameter(QgsProcessingParameterExtent(self.EXTENT, 'Mosaic extent:'))
-        self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates from points layer?:', defaultValue=True, optional=False))
-        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer', types=[QgsProcessing.TypeVectorPoint]))
-        self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):'))
+        self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates interval from points layer.', defaultValue=True, optional=False))
+        #self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):', type=1))
         self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
         self.addParameter(QgsProcessingParameterEnum(self.BAND1, 'Band1 (red):', self.bandlist, defaultValue=12))
         self.addParameter(QgsProcessingParameterEnum(self.BAND2, 'Band2 (green):', self.bandlist, defaultValue=7))
         self.addParameter(QgsProcessingParameterEnum(self.BAND3, 'Band3 (blue):', self.bandlist, defaultValue=3))
-        self.addParameter(QgsProcessingParameterBoolean(self.CLOUDFILTER, 'Cloud filter:', defaultValue=True, optional=False))
+        self.addParameter(QgsProcessingParameterBoolean(self.CLOUDFILTER, 'Apply cloud filter.', defaultValue=True, optional=False))
         self.addParameter(QgsProcessingParameterNumber(self.CLOUD, 'Cloudness:', defaultValue=50, optional=False, minValue=0, maxValue=100))
         self.addParameter(QgsProcessingParameterNumber(self.VIS_MIN, 'Vis_min:', defaultValue=30, optional=False, minValue=0, maxValue=10000))
         self.addParameter(QgsProcessingParameterNumber(self.VIS_MAX, 'Vis_max:', defaultValue=7000, optional=False, minValue=0, maxValue=10000))
-        self.addParameter(QgsProcessingParameterBoolean(self.VISIBLE, 'Is visible:', defaultValue=True, optional=False))
+        self.addParameter(QgsProcessingParameterBoolean(self.VISIBLE, 'Make result layer visible.', defaultValue=True, optional=False))
 #        self.addParameter(QgsProcessingParameterNumber(self.VIS_GAMMA, 'Vis_gamma:', defaultValue=1.7, optional=False, minValue=0, maxValue=10))
 #        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, 'Result mosaic', type=QgsProcessing.TypeVectorPolygon))
        
@@ -90,6 +92,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         date1 = self.parameterAsDateTime(parameters, self.DATE1, context)
         if get_date_from_point:
             point_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
+            #point_layer = self.parameterAsSource(parameters, self.INPUT, context)
             bbox_geom = self.parameterAsExtentGeometry(parameters, self.EXTENT, context, crs)
             date1, date2 = self.date_from_point(point_layer, bbox_geom, date1, crs, feedback)
             
@@ -115,7 +118,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         if cloud_filter:
             collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness).filterBounds(aoi).map(self.filterCloudSentinel2)
         else:
-            collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness).filterBounds(aoi)
+            collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
         #Определяем размер коллекции
         col_size = collection.size().getInfo()
         #Создадим медианный композит и обрежем по аои
@@ -143,6 +146,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         feat.setAttributes(['temp'])
         tmp_provider.addFeatures([feat])
 
+        #input_layer = point_layer.materialize(QgsFeatureRequest())
         result = processing.run('qgis:intersection', {'INPUT': point_layer, 'OVERLAY': tmp_layer, 'INPUT_FIELDS': ['acq_date', 'date_time'], 'OUTPUT': 'memory:'})
         features = result['OUTPUT'].getFeatures()
         f_count = result['OUTPUT'].featureCount()
