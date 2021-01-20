@@ -18,6 +18,9 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.core import (QgsProject,
                        QgsRasterLayer,
                        QgsLayerTreeLayer,
+                       QgsFeatureSink,
+                       QgsFeature,
+                       QgsVectorLayer,
                        QgsProcessing,
                        QgsProcessingParameterExtent,
                        QgsProcessingParameterFeatureSource,
@@ -69,7 +72,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
        
     def processAlgorithm(self, parameters, context, feedback):
         Processing.initialize()
-#        import processing
+        import processing
 
         #fmt = self.parameterAsEnum(parameters, self.FORMAT, context)
         #scale = int(self.parameterAsDouble(parameters, self.SCALE, context)/100)
@@ -81,6 +84,17 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         aoi=ee.FeatureCollection(ee.Geometry.Polygon(bbox_prj))
 
         point_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
+        bbox_geom = self.parameterAsExtentGeometry(parameters, self.EXTENT, context, crs)
+        uri_str = "Polygon?crs=" + crs.authid() + "&field=name:string(5)"
+        tmp_layer = QgsVectorLayer(uri_str, "tmp_layer", "memory")
+        feat = QgsFeature()
+        feat.setGeometry(bbox_geom)
+        feat.setAttributes(['temp'])
+        tmp_layer.addFeature(feat, QgsFeatureSink.FastInsert)
+
+        result = processing.run('qgis:intersection', {'INPUT': point_layer, 'OVERLAY': tmp_layer, 'INPUT_FIELDS': 'data', 'OUTPUT': 'memory:'})
+        features = result['OUTPUT'].getFeatures()
+        f_count = result['OUTPUT'].featureCount()
         
         interval = self.parameterAsInt(parameters, self.INTERVAL, context)
         date1 = self.parameterAsDateTime(parameters, self.DATE1, context)
@@ -122,7 +136,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 #        #добавим на карту
 #        self.addLayer(im2,{},layer_name_2,is_visible)
 
-        return {self.OUTPUT: [date_start, date_end, col_size]}
+        return {self.OUTPUT: [date_start, date_end, col_size, f_count, features]}
      
     def bbox_for_ee_collection(self, bbox, in_crs, out_crs):
         proj_in = pyproj.Proj(init=in_crs.authid())
