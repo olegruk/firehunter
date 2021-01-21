@@ -17,6 +17,7 @@ MosaicProcessingAlgorithm
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import (QgsProject,
                        QgsRasterLayer,
+                       QgsMapLayer,
                        QgsLayerTreeLayer,
                        QgsFeatureSink,
                        QgsFeature,
@@ -59,8 +60,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.bandlist = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']
         self.addParameter(QgsProcessingParameterExtent(self.EXTENT, 'Mosaic extent:'))
         self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates interval from points layer.', defaultValue=True, optional=False))
-        #self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
-        self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
+        #self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
         self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):', type=1))
         self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
         self.addParameter(QgsProcessingParameterEnum(self.BAND1, 'Band1 (red):', self.bandlist, defaultValue=12))
@@ -76,7 +77,6 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
        
     def processAlgorithm(self, parameters, context, feedback):
         Processing.initialize()
-        #import processing
 
         #fmt = self.parameterAsEnum(parameters, self.FORMAT, context)
         #scale = int(self.parameterAsDouble(parameters, self.SCALE, context)/100)
@@ -92,10 +92,12 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         date1 = self.parameterAsDateTime(parameters, self.DATE1, context)
         if get_date_from_point:
             point_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
-            #point_layer = self.parameterAsSource(parameters, self.INPUT, context)
             bbox_geom = self.parameterAsExtentGeometry(parameters, self.EXTENT, context, crs)
+            if type(point_layer) != QgsVectorLayer:
+                in_layer = self.parameterAsSource(parameters, self.INPUT, context)
+                point_layer = self.copy_features(in_layer, final_crs, feedback)
             date1, date2 = self.date_from_point(point_layer, bbox_geom, date1, crs, feedback)
-            
+           
         date_end = date1.toString("yyyy-MM-dd")
         date_start = date1.addDays(-interval).toString("yyyy-MM-dd")
 
@@ -136,6 +138,17 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
         return {self.OUTPUT: [date_start, date_end, col_size]}
 
+    def copy_features(self, in_layer, crs, feedback):
+        uri_str = "Point?crs=" + crs.authid() + "&field=date_time:datetime"
+        out_layer = QgsVectorLayer(uri_str, "out_layer", "memory")
+        feat = QgsFeature()
+        for f in in_layer.getFeatures():
+            feat.setGeometry(f.geometry())
+            feat.setAttributes([f.attribute('date_time')])
+            out_layer.dataProvider().addFeature(feat)
+        feedback.pushConsoleInfo('Selected points: %s'%str(out_layer.featureCount()))
+        return out_layer
+
     def date_from_point(self, point_layer, bbox_geom, date, crs, feedback):
         import processing
         uri_str = "Polygon?crs=" + crs.authid() + "&field=name:string(5)"
@@ -146,10 +159,10 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         feat.setAttributes(['temp'])
         tmp_provider.addFeatures([feat])
 
-        #input_layer = point_layer.materialize(QgsFeatureRequest())
         result = processing.run('qgis:intersection', {'INPUT': point_layer, 'OVERLAY': tmp_layer, 'INPUT_FIELDS': ['acq_date', 'date_time'], 'OUTPUT': 'memory:'})
         features = result['OUTPUT'].getFeatures()
         f_count = result['OUTPUT'].featureCount()
+        feedback.pushConsoleInfo('Points in intersection for detecting date: %s'%str(f_count))
         date_list = []
         total = 100.0 / f_count if f_count else 0
         for current, f in enumerate(features):
