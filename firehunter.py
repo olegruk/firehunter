@@ -49,7 +49,7 @@ class FireHunter:
         extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
         #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
-        processing.execAlgorithmDialog('firehunter:S2_image', {'EXTENT':extent})
+        processing.execAlgorithmDialog('firehunter:Get Sentinel2 images', {'EXTENT':extent})
 
     def runRectangle(self, b):
         if b:

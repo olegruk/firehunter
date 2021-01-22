@@ -60,7 +60,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.bandlist = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']
         self.addParameter(QgsProcessingParameterExtent(self.EXTENT, 'Mosaic extent:'))
         self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates interval from points layer.', defaultValue=True, optional=False))
-        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint], optional=True))
         #self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
         self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):', type=1))
         self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
@@ -293,7 +293,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             self.add_ee_image_layer(image, name, shown, opacity)
 
     def name(self):
-        return 'S2_image'
+        return 'Get Sentinel2 images'
 
     def icon(self):
         return QIcon(os.path.dirname(__file__) + '/firehunter.png')
