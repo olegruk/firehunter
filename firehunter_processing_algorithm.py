@@ -133,12 +133,12 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         generate_singledate = self.parameterAsBoolean(parameters, self.SINGLEDATE, context)
         if generate_singledate:
             for i in range(interval+1):
-                date_start = date1.addDays(-i).toString("yyyy-MM-dd")
-                date_end = date1.addDays(-i-1).toString("yyyy-MM-dd")
+                date_start = date1.addDays(-i-1).toString("yyyy-MM-dd")
+                date_end = date1.addDays(-i).toString("yyyy-MM-dd")
                 collection = ee.ImageCollection('COPERNICUS/S2_SR').filterBounds(aoi)
-                im = collection.filterDate(date_start).mean()#median().clipToCollection(aoi)
-                #im = collection.filterDate(date_start,date_end).median().clipToCollection(aoi)
-                layer_name = 'S2SRC-%s'%date
+                #im = collection.filterDate(date_start).mean()#median().clipToCollection(aoi)
+                im = collection.filterDate(date_start,date_end).median().clipToCollection(aoi)
+                layer_name = 'S2SRC-%s'%date_start
                 self.addLayer(im,visParams,layer_name,is_visible)
 
 #        #Парметры каналы, исходное изображение, АОИ, шкала (чем больше тем быстрее),перцентили)
