@@ -44,7 +44,6 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
     INPUT = 'INPUT'
     DATE1 = 'DATE1'
     INTERVAL = 'INTERVAL'
-    SINGLEDATE = 'SINGLEDATE'
     BAND1 = 'BAND1'
     BAND2 = 'BAND2'
     BAND3 = 'BAND3'
@@ -65,7 +64,6 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         #self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
         self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):', type=1))
         self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
-        self.addParameter(QgsProcessingParameterBoolean(self.SINGLEDATE, 'Generate single-date layers.', defaultValue=False, optional=False))
         self.addParameter(QgsProcessingParameterEnum(self.BAND1, 'Band1 (red):', self.bandlist, defaultValue=12))
         self.addParameter(QgsProcessingParameterEnum(self.BAND2, 'Band2 (green):', self.bandlist, defaultValue=7))
         self.addParameter(QgsProcessingParameterEnum(self.BAND3, 'Band3 (blue):', self.bandlist, defaultValue=3))
@@ -129,15 +127,6 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         im1 = collection.filterDate(date_start,date_end).median().clipToCollection(aoi)
         #добавим на карту
         self.addLayer(im1,visParams,layer_name_1,is_visible)
-
-        generate_singledate = self.parameterAsBoolean(parameters, self.SINGLEDATE, context)
-        if generate_singledate:
-            for i in range(interval+1):
-                date = date1.addDays(-i).toString("yyyy-MM-dd")
-                collection = ee.ImageCollection('COPERNICUS/S2_SR').filterBounds(aoi)
-                im = collection.filterDate(date).mean()#median().clipToCollection(aoi)
-                layer_name = 'S2SRC-%s'%date
-                self.addLayer(im,visParams,layer_name,is_visible)
 
 #        #Парметры каналы, исходное изображение, АОИ, шкала (чем больше тем быстрее),перцентили)
 #        layer_name_2 = 'Sent-2-%s-%s-stretch'%(date_start,date_end)
