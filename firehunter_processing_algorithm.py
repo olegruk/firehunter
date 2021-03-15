@@ -55,6 +55,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
     OUTPUT = 'OUTPUT'
 #    VIS_GAMMA = 'VIS_GAMMA'
 
+    combinations = {}
+
     def initAlgorithm(self, config=None):
 
         self.bandlist = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']
@@ -122,11 +124,27 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         else:
             collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
         #Определяем размер коллекции
-        col_size = collection.size().getInfo()
+        col_size1 = collection.size().getInfo()
         #Создадим медианный композит и обрежем по аои
-        im1 = collection.filterDate(date_start,date_end).median().clipToCollection(aoi)
+        dated_col = collection.filterDate(date_start,date_end)
+        col_size2 = dated_col.size().getInfo()
+        im1 = dated_col.median().clipToCollection(aoi)
         #добавим на карту
         self.addLayer(im1,visParams,layer_name_1,is_visible)
+
+        generate_singledate = self.parameterAsBoolean(parameters, self.SINGLEDATE, context)
+        if generate_singledate:
+            for i in range(interval+1):
+                date_start = date1.addDays(-i-1).toString("yyyy-MM-dd")
+                date_end = date1.addDays(-i).toString("yyyy-MM-dd")
+                collection = ee.ImageCollection('COPERNICUS/S2_SR').filterBounds(aoi)
+                dated_col = collection.filterDate(date_start,date_end)
+                #im = collection.filterDate(date_start).mean()#median().clipToCollection(aoi)
+                col_size = dated_col.size().getInfo()
+                if col_size > 0:
+                    im = dated_col.median().clipToCollection(aoi)
+                    layer_name = 'S2SRC-%s'%date_start
+                    self.addLayer(im,visParams,layer_name,is_visible)
 
 #        #Парметры каналы, исходное изображение, АОИ, шкала (чем больше тем быстрее),перцентили)
 #        layer_name_2 = 'Sent-2-%s-%s-stretch'%(date_start,date_end)
@@ -136,7 +154,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 #        #добавим на карту
 #        self.addLayer(im2,{},layer_name_2,is_visible)
 
-        return {self.OUTPUT: [date_start, date_end, col_size]}
+        return {self.OUTPUT: [date_start, date_end, col_size1, col_size2]}
 
     def copy_features(self, in_layer, crs, feedback):
         uri_str = "Point?crs=" + crs.authid() + "&field=date_time:datetime"
