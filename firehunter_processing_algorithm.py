@@ -45,6 +45,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
     DATE1 = 'DATE1'
     INTERVAL = 'INTERVAL'
     SINGLEDATE = 'SINGLEDATE'
+    COMBI = 'COMBI'
     BAND1 = 'BAND1'
     BAND2 = 'BAND2'
     BAND3 = 'BAND3'
@@ -59,6 +60,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
 
         self.bandlist = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']
+        self.combinations = ['True color', 'False color', 'False color (urban)', 'SWIR', 'Custom']
+        self.combi_dict = {'True color':['B4','B3','B2'], 'False color':['B8','B4','B3'], 'False color (urban)':['B12','B11','B4'], 'SWIR':['B12','B8A','B4'], 'Custom':['B12','B8','B4']}
         self.addParameter(QgsProcessingParameterExtent(self.EXTENT, 'Mosaic extent:'))
         self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates interval from points layer.', defaultValue=False, optional=False))
         self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint], optional=True))
@@ -66,6 +69,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):', type=1))
         self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
         self.addParameter(QgsProcessingParameterBoolean(self.SINGLEDATE, 'Generate single-date layers.', defaultValue=False, optional=False))
+        self.addParameter(QgsProcessingParameterEnum(self.COMBI, 'Channels combination:', self.combinations, defaultValue=len(self.combinations)-1))
         self.addParameter(QgsProcessingParameterEnum(self.BAND1, 'Band1 (red):', self.bandlist, defaultValue=12))
         self.addParameter(QgsProcessingParameterEnum(self.BAND2, 'Band2 (green):', self.bandlist, defaultValue=7))
         self.addParameter(QgsProcessingParameterEnum(self.BAND3, 'Band3 (blue):', self.bandlist, defaultValue=3))
@@ -105,9 +109,15 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
         #Параметры визуализации
         cloudiness = self.parameterAsInt(parameters, self.CLOUD, context)
-        r_band = self.bandlist[self.parameterAsEnum(parameters, self.BAND1, context)]
-        g_band = self.bandlist[self.parameterAsEnum(parameters, self.BAND2, context)]
-        b_band = self.bandlist[self.parameterAsEnum(parameters, self.BAND3, context)]
+        combi = self.parameterAsEnum(parameters, self.COMBI, context)
+        if combi == len(self.combinations)-1:
+            r_band = self.bandlist[self.parameterAsEnum(parameters, self.BAND1, context)]
+            g_band = self.bandlist[self.parameterAsEnum(parameters, self.BAND2, context)]
+            b_band = self.bandlist[self.parameterAsEnum(parameters, self.BAND3, context)]
+        else:
+            r_band = self.combi_dict[self.combinations[combi]][0]
+            g_band = self.combi_dict[self.combinations[combi]][1]
+            b_band = self.combi_dict[self.combinations[combi]][2]
         bands = [r_band,g_band,b_band]
         vis_min = self.parameterAsInt(parameters, self.VIS_MIN, context)
         vis_max = self.parameterAsInt(parameters, self.VIS_MAX, context)
@@ -154,7 +164,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 #        #добавим на карту
 #        self.addLayer(im2,{},layer_name_2,is_visible)
 
-        return {self.OUTPUT: [date_start, date_end, col_size1, col_size2]}
+        return {self.OUTPUT: [date_start, date_end, col_size1, col_size2, bands]}
 
     def copy_features(self, in_layer, crs, feedback):
         uri_str = "Point?crs=" + crs.authid() + "&field=date_time:datetime"
