@@ -35,7 +35,6 @@ from qgis.core import (QgsProject,
                        QgsCoordinateReferenceSystem)
 from processing.core.Processing import Processing
 import os.path, json,pyproj
-import ee
 
 class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
@@ -85,6 +84,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
        
     def processAlgorithm(self, parameters, context, feedback):
         Processing.initialize()
+        import ee
+        ee.Initialize()
 
         #fmt = self.parameterAsEnum(parameters, self.FORMAT, context)
         #scale = int(self.parameterAsDouble(parameters, self.SCALE, context)/100)
@@ -223,6 +224,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         return bbox_reproj
 
     def stretcher(self, bands, im, AOI, scale, range1, range2):
+        import ee
         stats = im.select(bands).clipToCollection(AOI).reduceRegion(
         reducer=ee.Reducer.percentile([range1, range2]), 
         geometry=AOI,
@@ -235,6 +237,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         return im.set('imRGB', imRGB)#Добавляем rgb к исходным каналам в виде метаданных
 
     def filterCloudSentinel2 (self, img): 
+        import ee
         quality = img.select('QA60').int()
         cloudBit = ee.Number(1024)
         cirrusBit = ee.Number(2048)
@@ -243,11 +246,12 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         clear = cloudFree.bitwiseAnd(cirrusFree)
         return img.updateMask(clear)
 
-    def addLayer(self, image: ee.Image, visParams=None, name=None, shown=True, opacity=1.0):
+    def addLayer(self, image, visParams=None, name=None, shown=True, opacity=1.0):
         """
             Adds a given EE object to the map as a layer.
             https://developers.google.com/earth-engine/api_docs#map.addlayer
         """
+        import ee
         if not isinstance(image, ee.Image) and not isinstance(image, ee.FeatureCollection) and not isinstance(image, ee.Feature) and not isinstance(image, ee.Geometry):
             err_str = "\n\nThe image argument in 'addLayer' function must be an instace of one of ee.Image, ee.Geometry, ee.Feature or ee.FeatureCollection."
             raise AttributeError(err_str)
@@ -270,6 +274,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.add_or_update_ee_image_layer(image, name, shown, opacity)
 
     def get_ee_image_url(self, image):
+        import ee
         map_id = ee.data.getMapId({'image': image})
         url = map_id['tile_fetcher'].url_format
         return url
