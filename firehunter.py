@@ -20,7 +20,7 @@ class FireHunter:
 
     def initGui(self):
         icon = QIcon(os.path.dirname(__file__) + '/firehunter.png')
-        self.rectangleAction = QAction(icon, 'Make a Sentinel-2 mosaic around firepoint by rectangle selection', self.iface.mainWindow())
+        self.rectangleAction = QAction(icon, 'Make a Sentinel-2 mosaic', self.iface.mainWindow())
         self.rectangleAction.triggered.connect(self.runRectangle)
         self.rectangleAction.setEnabled(True)
         self.rectangleAction.setCheckable(True)
@@ -49,7 +49,7 @@ class FireHunter:
         extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
         #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
-        processing.execAlgorithmDialog('firehunter:Get Sentinel2 images', {'EXTENT':extent})
+        processing.execAlgorithmDialog('firehunter:Make a Sentinel-2 mosaic', {'EXTENT':extent})
 
     def runRectangle(self, b):
         if b:

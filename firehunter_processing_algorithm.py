@@ -328,7 +328,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             self.add_ee_image_layer(image, name, shown, opacity)
 
     def name(self):
-        return 'Get Sentinel2 images'
+        return 'Make a Sentinel-2 mosaic'
 
     def icon(self):
         return QIcon(os.path.dirname(__file__) + '/firehunter.png')
