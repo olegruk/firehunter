@@ -128,7 +128,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         vis_gamma = 1.7
         visParams = {'bands': bands,'min': vis_min,'max': vis_max,'gamma': vis_gamma}
         is_visible = self.parameterAsBoolean(parameters, self.VISIBLE, context)
-        layer_name_1 = 'S2SRC-%s-%s'%(date_start,date_end)
+        layer_name_1 = 'S2SRC_%s_%s'%(date_start,date_end)
 
         #Выбираем коллекцию снимков  и фильтруем по общей облачности
         cloud_filter = self.parameterAsBoolean(parameters, self.CLOUDFILTER, context)
@@ -156,7 +156,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
                 col_size = dated_col.size().getInfo()
                 if col_size > 0:
                     im = dated_col.median().clipToCollection(aoi)
-                    layer_name = 'S2SRC-%s'%date_start
+                    layer_name = 'S2SRC_%s'%date_start
                     self.addLayer(im,visParams,layer_name,is_visible)
 
 #        #Парметры каналы, исходное изображение, АОИ, шкала (чем больше тем быстрее),перцентили)
