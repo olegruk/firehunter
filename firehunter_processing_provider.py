@@ -28,10 +28,10 @@ class firehunterProcessingProvider(QgsProcessingProvider):
         self.addAlgorithm(firehunterProcessingAlgorithm())
 
     def id(self):
-        return 'firehunter'
+        return 'Fire hunter'
 
     def name(self):
-        return 'firehunter'
+        return 'Fire hunter'
 
     def icon(self):
         return QIcon(os.path.dirname(__file__) + '/firehunter.png')

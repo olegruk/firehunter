@@ -49,7 +49,7 @@ class FireHunter:
         extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
         #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
-        processing.execAlgorithmDialog('firehunter:Make a Sentinel-2 mosaic', {'EXTENT':extent})
+        processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic', {'EXTENT':extent})
 
     def runRectangle(self, b):
         if b:

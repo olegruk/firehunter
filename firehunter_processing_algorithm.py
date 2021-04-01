@@ -148,8 +148,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         generate_singledate = self.parameterAsBoolean(parameters, self.SINGLEDATE, context)
         if generate_singledate:
             for i in range(interval+1):
-                date_start = date1.addDays(-i-1).toString("yyyy-MM-dd")
-                date_end = date1.addDays(-i).toString("yyyy-MM-dd")
+                date_start = date1.addDays(-i).toString("yyyy-MM-dd")
+                date_end = date1.addDays(-i+1).toString("yyyy-MM-dd")
                 collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
                 dated_col = collection.filterDate(date_start,date_end)
                 #im = collection.filterDate(date_start).mean()#median().clipToCollection(aoi)
