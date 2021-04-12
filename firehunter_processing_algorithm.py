@@ -2,7 +2,7 @@
 
 """
 /***************************************************************************
-MosaicProcessingAlgorithm
+ *   FirehunterProcessingAlgorithm                                         *
  ***************************************************************************/
 
 /***************************************************************************
@@ -11,6 +11,7 @@ MosaicProcessingAlgorithm
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
  *   (at your option) any later version.                                   *
+ *   It based on Google Earth Engine plugin by Gennadii Donchyts.          *
  *                                                                         *
  ***************************************************************************/
 """
@@ -143,7 +144,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         col_size2 = dated_col.size().getInfo()
         im1 = dated_col.median().clipToCollection(aoi)
         #добавим на карту
-        self.addLayer(im1,visParams,layer_name_1,is_visible)
+        self.addLayer(date_start,im1,visParams,layer_name_1,is_visible)
 
         generate_singledate = self.parameterAsBoolean(parameters, self.SINGLEDATE, context)
         if generate_singledate:
@@ -157,7 +158,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
                 if col_size > 0:
                     im = dated_col.median().clipToCollection(aoi)
                     layer_name = 'S2SRC_%s'%date_start
-                    self.addLayer(im,visParams,layer_name,is_visible)
+                    self.addLayer(date_start,im,visParams,layer_name,is_visible)
 
 #        #Парметры каналы, исходное изображение, АОИ, шкала (чем больше тем быстрее),перцентили)
 #        layer_name_2 = 'Sent-2-%s-%s-stretch'%(date_start,date_end)
@@ -246,7 +247,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         clear = cloudFree.bitwiseAnd(cirrusFree)
         return img.updateMask(clear)
 
-    def addLayer(self, image, visParams=None, name=None, shown=True, opacity=1.0):
+    def addLayer(self, date_start, image, visParams=None, name=None, shown=True, opacity=1.0):
         """
             Adds a given EE object to the map as a layer.
             https://developers.google.com/earth-engine/api_docs#map.addlayer
@@ -271,7 +272,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
                     "scope"][0][1]["arguments"]["id"]
             except:
                 name = "untitled"
-        self.add_or_update_ee_image_layer(image, name, shown, opacity)
+        self.add_or_update_ee_image_layer(date_start, image, name, shown, opacity)
 
     def get_ee_image_url(self, image):
         import ee
@@ -279,20 +280,21 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         url = map_id['tile_fetcher'].url_format
         return url
 
-    def update_ee_layer_properties(self, layer, image, opacity):
+    def update_ee_layer_properties(self, date_start, layer, image, opacity):
         layer.setCustomProperty('ee-layer', True)
         if not (opacity is None):
             layer.renderer().setOpacity(opacity)
         layer.brightnessFilter().setContrast(25)
+        layer.setAbstract('&datasetId=S2L1C&fromTime=%sT00%%3A00%%3A00.000Z&toTime=%sT23%%3A59%%3A59.999Z&layerId=6-SWIR'%(date_start,date_start))
 
         # serialize EE code
         ee_script = image.serialize()
         layer.setCustomProperty('ee-script', ee_script)
 
-    def add_ee_image_layer(self, image, name, shown, opacity):
+    def add_ee_image_layer(self, date_start, image, name, shown, opacity):
         url = "type=xyz&url=" + self.get_ee_image_url(image)
         layer = QgsRasterLayer(url, name, "wms")
-        self.update_ee_layer_properties(layer, image, opacity)
+        self.update_ee_layer_properties(date_start, layer, image, opacity)
         QgsProject.instance().addMapLayer(layer)
         root = QgsProject.instance().layerTreeRoot()
         root.insertChildNode(0, QgsLayerTreeLayer(layer))
@@ -300,11 +302,11 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         if not (shown is None):
             root.findLayer(layer.id()).setItemVisibilityChecked(shown)
 
-    def update_ee_image_layer(self, image, layer, shown=True, opacity=1.0):
+    def update_ee_image_layer(self, date_start, image, layer, shown=True, opacity=1.0):
         url = "type=xyz&url=" + self.get_ee_image_url(image)
         layer.dataProvider().setDataSourceUri(url)
         layer.dataProvider().reloadData()
-        self.update_ee_layer_properties(layer, image, opacity)
+        self.update_ee_layer_properties(date_start, layer, image, opacity)
         layer.triggerRepaint()
         layer.reload()
         if not (shown is None):
@@ -318,14 +320,14 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
                 return l
         return None
 
-    def add_or_update_ee_image_layer(self, image, name, shown=True, opacity=1.0):
+    def add_or_update_ee_image_layer(self, date_start, image, name, shown=True, opacity=1.0):
         layer = self.get_layer_by_name(name)
         if layer:
             if not layer.customProperty('ee-layer'):
                 raise Exception('Layer is not an EE layer: ' + name)
-            self.update_ee_image_layer(image, layer, shown, opacity)
+            self.update_ee_image_layer(date_start, image, layer, shown, opacity)
         else:
-            self.add_ee_image_layer(image, name, shown, opacity)
+            self.add_ee_image_layer(date_start, image, name, shown, opacity)
 
     def name(self):
         return 'Make a Sentinel-2 mosaic'
