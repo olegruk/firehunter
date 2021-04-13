@@ -27,23 +27,38 @@ class FireHunter:
         self.toolbar.addAction(self.rectangleAction)
         self.iface.addPluginToRasterMenu(self.menu, self.rectangleAction)
 
+        icon = QIcon(os.path.dirname(__file__) + '/make-link.png')
+        self.linkAction = QAction(icon, 'Make a Sentinel-hub link', self.iface.mainWindow())
+        self.linkAction.triggered.connect(self.runMakeLink)
+        self.linkAction.setEnabled(True)
+        self.linkAction.setCheckable(True)
+        self.toolbar.addAction(self.linkAction)
+        self.iface.addPluginToRasterMenu(self.menu, self.linkAction)
+
         self.rectangleAreaTool = RectangleAreaTool(self.iface.mapCanvas(), self.rectangleAction)
-        self.rectangleAreaTool.rectangleCreated.connect(self.run)
+        self.rectangleAreaTool.rectangleCreated.connect(self.run_r)
+        self.captureLatLonTool = CaptureLatLonTool(self.iface.mapCanvas(), self.linkAction)
+        self.captureLatLonTool.latLonCaptured.connect(self.run_c)
 
         self.initProcessing()
         self.first_start = True
 
     def initProcessing(self):
-        self.provider = firehunterProcessingProvider()
-        QgsApplication.processingRegistry().addProvider(self.provider)
+        self.firehunter_provider = firehunterProcessingProvider()
+        QgsApplication.processingRegistry().addProvider(self.firehunter_provider)
+        self.makelink_provider = makeLinkProcessingProvider()
+        QgsApplication.processingRegistry().addProvider(self.makelink_provider)
 
     def unload(self):
         self.iface.removePluginRasterMenu(self.menu, self.rectangleAction)
         self.iface.removeToolBarIcon(self.rectangleAction)
-        QgsApplication.processingRegistry().removeProvider(self.provider)
+        self.iface.removePluginRasterMenu(self.menu, self.linkAction)
+        self.iface.removeToolBarIcon(self.linkAction)
+        QgsApplication.processingRegistry().removeProvider(self.firehunter_provider)
+        QgsApplication.processingRegistry().removeProvider(self.makelink_provider)
         del self.toolbar
 
-    def run(self, startX, startY, endX, endY):
+    def run_r(self, startX, startY, endX, endY):
         if startX == endX and startY == endY:
             return
         extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
@@ -51,11 +66,25 @@ class FireHunter:
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
         processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic', {'EXTENT':extent})
 
+    def run_c(self, lat, lon):
+        baselink = 'https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=%f&lng=%f&themeId=DEFAULT-THEME'%(lat, lon)
+        #self.iface.mapCanvas().unsetMapTool(self.captureLatLonTool)
+        self.iface.mapCanvas().setMapTool(self.prevMapTool)
+        processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-hub link', {'BASE_LINK':baselink})
+
     def runRectangle(self, b):
         if b:
             self.prevMapTool = self.iface.mapCanvas().mapTool()
             self.iface.mapCanvas().setMapTool(self.rectangleAreaTool)
         else:
             #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
+            self.iface.mapCanvas().setMapTool(self.prevMapTool)
+
+    def runMakeLink(self, b):
+        if b:
+            self.prevMapTool = self.iface.mapCanvas().mapTool()
+            self.iface.mapCanvas().setMapTool(self.captureLatLonTool)
+        else:
+            #self.iface.mapCanvas().unsetMapTool(self.captureLatLonTool)
             self.iface.mapCanvas().setMapTool(self.prevMapTool)
 
