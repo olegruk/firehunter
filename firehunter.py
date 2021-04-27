@@ -68,14 +68,20 @@ class FireHunter:
         processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic', {'EXTENT':extent})
 
     def run_c(self, lat, lon):
-        sel_lay = self.iface.layerTreeView().selectedLayers()[0].name()
-        date_start = re.search(r'S2SRC_\d\d\d\d-\d\d-\d\d', sel_lay)[0]
-        if len(date_start) == 16:
-            date_start = date_start[6:]
-            baselink = 'https://apps.sentinel-hub.com/eo-browser/?zoom=13&lat=%f&lng=%f&themeId=DEFAULT-THEME&datasetId=S2L1C&fromTime=%sT00%%3A00%%3A00.000Z&toTime=%sT23%%3A59%%3A59.999Z&layerId=6-SWIR'%(lat, lon, date_start, date_start)
-            clipboard = QApplication.clipboard()
-            clipboard.setText(baselink)
-            self.iface.messageBar().pushMessage("", "Coordinate captured. {}".format(baselink), level=Qgis.Info, duration=4)
+        sel_lay = self.iface.layerTreeView().selectedLayers()
+        if sel_lay:
+            sel_lay = sel_lay[0].name()
+            date_start = re.search(r'S2SRC_\d\d\d\d-\d\d-\d\d', sel_lay)
+        if date_start:
+            date_start = date_start[0]
+            if len(date_start) == 16:
+                date_start = date_start[6:]
+                baselink = 'https://apps.sentinel-hub.com/eo-browser/?zoom=13&lat=%f&lng=%f&themeId=DEFAULT-THEME&datasetId=S2L1C&fromTime=%sT00%%3A00%%3A00.000Z&toTime=%sT23%%3A59%%3A59.999Z&layerId=6-SWIR'%(lat, lon, date_start, date_start)
+                clipboard = QApplication.clipboard()
+                clipboard.setText(baselink)
+                self.iface.messageBar().pushMessage("", "Coordinate captured. {}".format(baselink), level=Qgis.Info, duration=4)
+            else:
+                self.iface.messageBar().pushMessage("", "Unable to recognize date. Select a single-date layer.", level=Qgis.Warning, duration=4)
         else:
             self.iface.messageBar().pushMessage("", "Unable to recognize date. Select a single-date layer.", level=Qgis.Warning, duration=4)
         #self.iface.mapCanvas().unsetMapTool(self.captureCoord)
