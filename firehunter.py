@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import re, processing, os.path, datetime
 from qgis.PyQt.QtWidgets import QAction, QApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import Qgis, QgsApplication
-import re, processing, os.path
 from .resources import *
 from .rectangleAreaTool import RectangleAreaTool
 from .captureCoord import CaptureCoord
@@ -28,6 +28,14 @@ class FireHunter:
         self.toolbar.addAction(self.rectangleAction)
         self.iface.addPluginToRasterMenu(self.menu, self.rectangleAction)
 
+        icon = QIcon(os.path.dirname(__file__) + '/twoday.png')
+        self.twodayAction = QAction(icon, 'Make a Sentinel-2 2-day mosaic', self.iface.mainWindow())
+        self.twodayAction.triggered.connect(self.runTwoDay)
+        self.twodayAction.setEnabled(True)
+        self.twodayAction.setCheckable(True)
+        self.toolbar.addAction(self.twodayAction)
+        self.iface.addPluginToRasterMenu(self.menu, self.twodayAction)
+
         icon = QIcon(os.path.dirname(__file__) + '/make-link.png')
         self.linkAction = QAction(icon, 'Make a Sentinel-hub link', self.iface.mainWindow())
         self.linkAction.triggered.connect(self.runMakeLink)
@@ -38,6 +46,8 @@ class FireHunter:
 
         self.rectangleAreaTool = RectangleAreaTool(self.iface.mapCanvas(), self.rectangleAction)
         self.rectangleAreaTool.rectangleCreated.connect(self.run_r)
+        self.twodayTool = RectangleAreaTool(self.iface.mapCanvas(), self.twodayAction)
+        self.twodayTool.rectangleCreated.connect(self.run_t)
         self.captureCoord = CaptureCoord(self.iface)
         self.captureCoord.captureStopped.connect(self.run_c)
 
@@ -55,8 +65,9 @@ class FireHunter:
         self.iface.removeToolBarIcon(self.rectangleAction)
         self.iface.removePluginRasterMenu(self.menu, self.linkAction)
         self.iface.removeToolBarIcon(self.linkAction)
+        self.iface.removePluginRasterMenu(self.menu, self.twodayAction)
+        self.iface.removeToolBarIcon(self.twodayAction)
         QgsApplication.processingRegistry().removeProvider(self.firehunter_provider)
-        #QgsApplication.processingRegistry().removeProvider(self.makelink_provider)
         del self.toolbar
 
     def run_r(self, startX, startY, endX, endY):
@@ -66,6 +77,34 @@ class FireHunter:
         #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
         processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic', {'EXTENT':extent})
+
+    def run_t(self, startX, startY, endX, endY):
+        if startX == endX and startY == endY:
+            return
+        extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        self.iface.mapCanvas().setMapTool(self.prevMapTool)
+        #self.iface.messageBar().pushMessage("", "Layer generation started.", level=Qgis.Info, duration=4)
+        #processing.run('Fire hunter:Make a Sentinel-2 mosaic',
+        processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic',
+            {'EXTENT': extent, 
+            'DATEFROMPOINT': False, 
+            'DATE1': today,
+            'INTERVAL': 2,
+            'SINGLEDATE': True,
+            'COMPOSITE': False,
+            'PREFIX': '',
+            'COMBI': 4,
+            'BAND1': 12,
+            'BAND2': 7,
+            'BAND3': 3,
+            'CLOUDFILTER': True,
+            'CLOUD': 50,
+            'VIS_MIN': 30,
+            'VIS_MAX': 7000,
+            'VISIBLE': True
+            })
+        #self.iface.messageBar().pushMessage("", "Layer generation finished.", level=Qgis.Info, duration=4)
 
     def run_c(self, lat, lon):
         sel_lay = self.iface.layerTreeView().selectedLayers()
@@ -79,7 +118,7 @@ class FireHunter:
                     baselink = 'https://apps.sentinel-hub.com/eo-browser/?zoom=13&lat=%f&lng=%f&themeId=DEFAULT-THEME&datasetId=S2L1C&fromTime=%sT00%%3A00%%3A00.000Z&toTime=%sT23%%3A59%%3A59.999Z&layerId=6-SWIR'%(lat, lon, date_start, date_start)
                     clipboard = QApplication.clipboard()
                     clipboard.setText(baselink)
-                    self.iface.messageBar().pushMessage("", "Coordinate captured. {}".format(baselink), level=Qgis.Info, duration=4)
+                    self.iface.messageBar().pushMessage("", "Sentinel-Hub link copied to clipboard. {}".format(baselink), level=Qgis.Info, duration=4)
                 else:
                     self.iface.messageBar().pushMessage("", "Unable to recognize date. Select a single-date layer.", level=Qgis.Warning, duration=4)
             else:
@@ -89,7 +128,6 @@ class FireHunter:
         #self.iface.mapCanvas().unsetMapTool(self.captureCoord)
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
         self.linkAction.setChecked(False)
-        #processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-hub link', {'BASE_LINK':baselink})
 
     def runRectangle(self, b):
         if b:
@@ -107,3 +145,12 @@ class FireHunter:
             #self.iface.mapCanvas().unsetMapTool(self.captureCoord)
             self.iface.mapCanvas().setMapTool(self.prevMapTool)
             self.linkAction.setChecked(False)
+
+    def runTwoDay(self, b):
+        if b:
+            self.prevMapTool = self.iface.mapCanvas().mapTool()
+            self.iface.mapCanvas().setMapTool(self.twodayTool)
+        else:
+            #self.iface.mapCanvas().unsetMapTool(self.captureCoord)
+            self.iface.mapCanvas().setMapTool(self.prevMapTool)
+            self.twodayAction.setChecked(False)
