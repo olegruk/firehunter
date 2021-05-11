@@ -18,9 +18,7 @@
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import (QgsProject,
                        QgsRasterLayer,
-                       QgsMapLayer,
                        QgsLayerTreeLayer,
-                       QgsFeatureSink,
                        QgsFeature,
                        QgsVectorLayer,
                        QgsProcessing,
@@ -33,7 +31,6 @@ from qgis.core import (QgsProject,
                        QgsProcessingParameterBoolean,
                        QgsProcessingParameterDateTime,
                        QgsProcessingAlgorithm,
-                       #QgsProcessingParameterFeatureSink,
                        QgsCoordinateReferenceSystem,
                        QgsMapLayerType)
 from processing.core.Processing import Processing
@@ -71,7 +68,6 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterExtent(self.EXTENT, 'Mosaic extent:'))
         self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates interval from points layer.', defaultValue=False, optional=False))
         self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint], optional=True))
-        #self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint]))
         self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):', type=1))
         self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
         self.addParameter(QgsProcessingParameterBoolean(self.SINGLEDATE, 'Generate single-date layers.', defaultValue=True, optional=False))
@@ -87,15 +83,11 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterNumber(self.VIS_MAX, 'Vis_max:', defaultValue=7000, optional=False, minValue=0, maxValue=10000))
         self.addParameter(QgsProcessingParameterBoolean(self.VISIBLE, 'Make result layer visible.', defaultValue=True, optional=False))
 #        self.addParameter(QgsProcessingParameterNumber(self.VIS_GAMMA, 'Vis_gamma:', defaultValue=1.7, optional=False, minValue=0, maxValue=10))
-#        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, 'Result mosaic', type=QgsProcessing.TypeVectorPolygon))
        
     def processAlgorithm(self, parameters, context, feedback):
         Processing.initialize()
         import ee
         ee.Initialize()
-
-        #fmt = self.parameterAsEnum(parameters, self.FORMAT, context)
-        #scale = int(self.parameterAsDouble(parameters, self.SCALE, context)/100)
 
         crs = context.project().crs()
         final_crs = QgsCoordinateReferenceSystem("EPSG:4326")
@@ -313,10 +305,11 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         root = QgsProject.instance().layerTreeRoot()
         #layer_list = root.checkedLayers()
         #idx = self._last_raster(layer_list)
-        #group = root.findGroup('S2SRC')
-        #if not group:
-        #    group = root.insertGroup(0, 'S2SRC')
-        root.insertChildNode(0, QgsLayerTreeLayer(layer))
+        group = root.findGroup('S2SRC')
+        if not group:
+            group = root.insertGroup(0, 'S2SRC')
+        #root.insertChildNode(0, QgsLayerTreeLayer(layer))
+        group.insertChildNode(0, QgsLayerTreeLayer(layer))
         if not (shown is None):
             root.findLayer(layer.id()).setItemVisibilityChecked(shown)
 
