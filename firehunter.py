@@ -8,6 +8,7 @@ from .resources import *
 from .rectangleAreaTool import RectangleAreaTool
 from .captureCoord import CaptureCoord
 from .firehunter_processing_provider import firehunterProcessingProvider
+from configparser import ConfigParser
 
 class FireHunter:
 
@@ -74,35 +75,70 @@ class FireHunter:
         if startX == endX and startY == endY:
             return
         extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
-        #self.iface.mapCanvas().unsetMapTool(self.rectangleAreaTool)
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        [p_datefrompoint,p_interval_b,p_interval_a,p_singledate,p_composite,p_preyear,p_postyear,p_prefix,p_combi,p_band1,p_band2,p_band3,p_cloudfilter,p_cloud,p_vis_min,p_vis_max,p_visible] = self.get_config("set1")
+        if p_datefrompoint:
+            cur_Layer = self.iface.mapCanvas().currentLayer()
+        else:
+            cur_layer = ''
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
-        processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic', {'EXTENT':extent})
+        processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic',
+            {'EXTENT': extent, 
+            'DATEFROMPOINT': p_datefrompoint,
+            'INPUT': cur_Layer,
+            'DATE': today,
+            'INTERVAL_B': p_interval_b,
+            'INTERVAL_A': p_interval_a,
+            'SINGLEDATE': p_singledate,
+            'COMPOSITE': p_composite,
+            'PREYEAR': p_preyear,
+            'POSTYEAR': p_postyear,
+            'PREFIX': p_prefix,
+            'COMBI': p_combi,
+            'BAND1': p_band1,
+            'BAND2': p_band2,
+            'BAND3': p_band3,
+            'CLOUDFILTER': p_cloudfilter,
+            'CLOUD': p_cloud,
+            'VIS_MIN': p_vis_min,
+            'VIS_MAX': p_vis_max,
+            'VISIBLE': p_visible
+            })
+        #self.iface.messageBar().pushMessage("", "Layer generation finished.", level=Qgis.Info, duration=4)
 
     def run_t(self, startX, startY, endX, endY):
         if startX == endX and startY == endY:
             return
         extent = '%f,%f,%f,%f'%(startX, endX, startY, endY)
-        today = datetime.date.today().strftime("%Y-%m-%d")
+        [p_datefrompoint,p_interval_b,p_interval_a,p_singledate,p_composite,p_preyear,p_postyear,p_prefix,p_combi,p_band1,p_band2,p_band3,p_cloudfilter,p_cloud,p_vis_min,p_vis_max,p_visible] = self.get_config("set2")
+        if p_datefrompoint:
+            cur_Layer = self.iface.mapCanvas().currentLayer()
+            today = ''
+        else:
+            cur_layer = ''
+            today = datetime.date.today().strftime("%Y-%m-%d")
         self.iface.mapCanvas().setMapTool(self.prevMapTool)
-        #self.iface.messageBar().pushMessage("", "Layer generation started.", level=Qgis.Info, duration=4)
-        #processing.run('Fire hunter:Make a Sentinel-2 mosaic',
         processing.execAlgorithmDialog('Fire hunter:Make a Sentinel-2 mosaic',
             {'EXTENT': extent, 
-            'DATEFROMPOINT': False, 
-            'DATE1': today,
-            'INTERVAL': 2,
-            'SINGLEDATE': True,
-            'COMPOSITE': False,
-            'PREFIX': '',
-            'COMBI': 4,
-            'BAND1': 12,
-            'BAND2': 7,
-            'BAND3': 3,
-            'CLOUDFILTER': True,
-            'CLOUD': 50,
-            'VIS_MIN': 30,
-            'VIS_MAX': 7000,
-            'VISIBLE': True
+            'DATEFROMPOINT': p_datefrompoint,
+            'INPUT': cur_Layer,
+            'DATE': today,
+            'INTERVAL_B': p_interval_b,
+            'INTERVAL_A': p_interval_a,
+            'SINGLEDATE': p_singledate,
+            'COMPOSITE': p_composite,
+            'PREYEAR': p_preyear,
+            'POSTYEAR': p_postyear,
+            'PREFIX': p_prefix,
+            'COMBI': p_combi,
+            'BAND1': p_band1,
+            'BAND2': p_band2,
+            'BAND3': p_band3,
+            'CLOUDFILTER': p_cloudfilter,
+            'CLOUD': p_cloud,
+            'VIS_MIN': p_vis_min,
+            'VIS_MAX': p_vis_max,
+            'VISIBLE': p_visible
             })
         #self.iface.messageBar().pushMessage("", "Layer generation finished.", level=Qgis.Info, duration=4)
 
@@ -154,3 +190,32 @@ class FireHunter:
             #self.iface.mapCanvas().unsetMapTool(self.captureCoord)
             self.iface.mapCanvas().setMapTool(self.prevMapTool)
             self.twodayAction.setChecked(False)
+
+    def get_config(self, node):
+        inifile = "firehunter.ini"
+        param_names = ["datefrompoint", 
+                        "interval_b",
+                        "interval_a",
+                        "singledate",
+                        "composite",
+                        "preyear",
+                        "postyear",
+                        "prefix",
+                        "combi",
+                        "band1",
+                        "band2",
+                        "band3",
+                        "cloudfilter",
+                        "cloud",
+                        "vis_min",
+                        "vis_max",
+                        "visible"]
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(base_path, inifile)
+        if os.path.exists(config_path):
+            cfg = ConfigParser()
+            cfg.read(config_path)
+            param = [cfg.get(node, param_name) for param_name in param_names]
+        else:
+            param = [True, 7, 30, True, False, True, True, '', 4, 12, 7, 3, True, 1, 30, 7000, True]
+        return param

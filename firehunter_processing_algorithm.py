@@ -34,17 +34,20 @@ from qgis.core import (QgsProject,
                        QgsCoordinateReferenceSystem,
                        QgsMapLayerType)
 from processing.core.Processing import Processing
-import os.path, json,pyproj
+import os.path, json, pyproj
 
 class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
     EXTENT = 'EXTENT'
     DATEFROMPOINT = 'DATEFROMPOINT'
     INPUT = 'INPUT'
-    DATE1 = 'DATE1'
-    INTERVAL = 'INTERVAL'
+    DATE = 'DATE'
+    INTERVAL_A = 'INTERVAL_A'
+    INTERVAL_B = 'INTERVAL_B'
     SINGLEDATE = 'SINGLEDATE'
     COMPOSITE = 'COMPOSITE'
+    PREYEAR = 'PREYEAR'
+    POSTYEAR = 'POSTYEAR'
     PREFIX = 'PREFIX'
     COMBI = 'COMBI'
     BAND1 = 'BAND1'
@@ -68,17 +71,21 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterExtent(self.EXTENT, 'Mosaic extent:'))
         self.addParameter(QgsProcessingParameterBoolean(self.DATEFROMPOINT, 'Get dates interval from points layer.', defaultValue=False, optional=False))
         self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint], optional=True))
-        self.addParameter(QgsProcessingParameterDateTime(self.DATE1, 'Date (last date for mosaic):', type=1))
-        self.addParameter(QgsProcessingParameterNumber(self.INTERVAL, 'Interval (days before "Date"):', defaultValue=7, optional=False, minValue=1, maxValue=31))
+        #self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT, 'Points layer:', types=[QgsProcessing.TypeVectorPoint], optional=False))
+        self.addParameter(QgsProcessingParameterDateTime(self.DATE, 'Date (last date for mosaic):', type=1))
+        self.addParameter(QgsProcessingParameterNumber(self.INTERVAL_B, 'Interval before (days before "Date"):', defaultValue=0, optional=False, minValue=0, maxValue=90))
+        self.addParameter(QgsProcessingParameterNumber(self.INTERVAL_A, 'Interval after (days after "Date"):', defaultValue=0, optional=False, minValue=0, maxValue=90))
         self.addParameter(QgsProcessingParameterBoolean(self.SINGLEDATE, 'Generate single-date layers.', defaultValue=True, optional=False))
         self.addParameter(QgsProcessingParameterBoolean(self.COMPOSITE, 'Generate composite layer.', defaultValue=False, optional=False))
-        self.addParameter(QgsProcessingParameterString(self.PREFIX, 'Layer prefix:', defaultValue='', optional=True))
-        self.addParameter(QgsProcessingParameterEnum(self.COMBI, 'Channels combination:', self.combinations, defaultValue=len(self.combinations)-1))
+        self.addParameter(QgsProcessingParameterBoolean(self.PREYEAR, 'Generate composite layer for previous year.', defaultValue=False, optional=False))
+        self.addParameter(QgsProcessingParameterBoolean(self.POSTYEAR, 'Generate composite layer for following year.', defaultValue=False, optional=False))
+        self.addParameter(QgsProcessingParameterString(self.PREFIX, 'Layer prefix:', optional=True))
+        self.addParameter(QgsProcessingParameterEnum(self.COMBI, 'Channels combination:', self.combinations, defaultValue=4))
         self.addParameter(QgsProcessingParameterEnum(self.BAND1, 'Band1 (red):', self.bandlist, defaultValue=12))
         self.addParameter(QgsProcessingParameterEnum(self.BAND2, 'Band2 (green):', self.bandlist, defaultValue=7))
         self.addParameter(QgsProcessingParameterEnum(self.BAND3, 'Band3 (blue):', self.bandlist, defaultValue=3))
         self.addParameter(QgsProcessingParameterBoolean(self.CLOUDFILTER, 'Apply cloud filter.', defaultValue=True, optional=False))
-        self.addParameter(QgsProcessingParameterNumber(self.CLOUD, 'Cloudness:', defaultValue=50, optional=False, minValue=0, maxValue=100))
+        self.addParameter(QgsProcessingParameterNumber(self.CLOUD, 'Cloudness:', defaultValue=1, optional=False, minValue=0, maxValue=100))
         self.addParameter(QgsProcessingParameterNumber(self.VIS_MIN, 'Vis_min:', defaultValue=30, optional=False, minValue=0, maxValue=10000))
         self.addParameter(QgsProcessingParameterNumber(self.VIS_MAX, 'Vis_max:', defaultValue=7000, optional=False, minValue=0, maxValue=10000))
         self.addParameter(QgsProcessingParameterBoolean(self.VISIBLE, 'Make result layer visible.', defaultValue=True, optional=False))
@@ -95,9 +102,11 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         bbox_prj = self.bbox_for_ee_collection(bbox, crs, final_crs)
         aoi=ee.FeatureCollection(ee.Geometry.Polygon(bbox_prj))
 
-        interval = self.parameterAsInt(parameters, self.INTERVAL, context)
+        interval_a = self.parameterAsInt(parameters, self.INTERVAL_A, context)
+        interval_b = self.parameterAsInt(parameters, self.INTERVAL_B, context)
         get_date_from_point = self.parameterAsBoolean(parameters, self.DATEFROMPOINT, context)
-        date1 = self.parameterAsDateTime(parameters, self.DATE1, context)
+        date1 = self.parameterAsDateTime(parameters, self.DATE, context)
+        date2 = date1
         if get_date_from_point:
             point_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
             bbox_geom = self.parameterAsExtentGeometry(parameters, self.EXTENT, context, crs)
@@ -105,6 +114,10 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
                 in_layer = self.parameterAsSource(parameters, self.INPUT, context)
                 point_layer = self.copy_features(in_layer, final_crs, feedback)
             date1, date2 = self.date_from_point(point_layer, bbox_geom, date1, crs, feedback)
+        date_start = date1.addDays(-interval_b)
+        date_end = date2.addDays(interval_a)
+        day_delta = date_start.daysTo(date_end) + 1
+        feedback.pushConsoleInfo('Date interval: %(s)s : %(e)s'%{'s': date_start.toString("yyyy-MM-dd"), 'e':  date_end.toString("yyyy-MM-dd")})
            
         #Параметры визуализации
         cloudiness = self.parameterAsInt(parameters, self.CLOUD, context)
@@ -127,8 +140,9 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
 
         generate_composite = self.parameterAsBoolean(parameters, self.COMPOSITE, context)
         if generate_composite:
-            date_end = date1.toString("yyyy-MM-dd")
-            date_start = date1.addDays(-interval).toString("yyyy-MM-dd")
+            date_lo = date_start.toString("yyyy-MM-dd")
+            date_hi = date_end.toString("yyyy-MM-dd")
+            #date_end = date1.toString("yyyy-MM-dd")
             #Выбираем коллекцию снимков  и фильтруем по общей облачности
             cloud_filter = self.parameterAsBoolean(parameters, self.CLOUDFILTER, context)
             if cloud_filter:
@@ -138,33 +152,83 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             #Определяем размер коллекции
             col_size1 = collection.size().getInfo()
             #Создадим медианный композит и обрежем по аои
-            dated_col = collection.filterDate(date_start,date_end)
+            dated_col = collection.filterDate(date_lo,date_hi)
             col_size2 = dated_col.size().getInfo()
             if col_size2 > 0:
                 im1 = dated_col.median().clipToCollection(aoi)
                 prefix = self.parameterAsString(parameters, self.PREFIX, context)
-                layer_name_1 = 'S2SRC_%s_%s'%(date_start,date_end)
+                layer_name_1 = 'S2SRC_%s_%s'%(date_lo,date_hi)
                 if prefix:
                     layer_name_1 = prefix + '-' +layer_name_1
                 #добавим на карту
-                self.addLayer(date_start,im1,visParams,layer_name_1,is_visible)
+                self.addLayer(date_lo,im1,visParams,layer_name_1,is_visible)
+
+        generate_pre_year = self.parameterAsBoolean(parameters, self.PREYEAR, context)
+        if generate_pre_year:
+            date_lo = date1.addDays(-390).toString("yyyy-MM-dd")
+            date_hi = date1.addDays(-330).toString("yyyy-MM-dd")
+            #date_end = date1.toString("yyyy-MM-dd")
+            #Выбираем коллекцию снимков  и фильтруем по общей облачности
+            cloud_filter = self.parameterAsBoolean(parameters, self.CLOUDFILTER, context)
+            if cloud_filter:
+                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness).filterBounds(aoi).map(self.filterCloudSentinel2)
+            else:
+                collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
+            #Определяем размер коллекции
+            col_size1 = collection.size().getInfo()
+            #Создадим медианный композит и обрежем по аои
+            dated_col = collection.filterDate(date_lo,date_hi)
+            col_size2 = dated_col.size().getInfo()
+            if col_size2 > 0:
+                im1 = dated_col.median().clipToCollection(aoi)
+                prefix = self.parameterAsString(parameters, self.PREFIX, context)
+                layer_name_1 = 'S2SRC_%s_%s'%(date_lo,date_hi)
+                if prefix:
+                    layer_name_1 = prefix + '-' +layer_name_1
+                #добавим на карту
+                self.addLayer(date_lo,im1,visParams,layer_name_1,is_visible)
+
+        generate_post_year = self.parameterAsBoolean(parameters, self.POSTYEAR, context)
+        if generate_post_year:
+            date_lo = date2.addDays(330).toString("yyyy-MM-dd")
+            date_hi = date2.addDays(390).toString("yyyy-MM-dd")
+            #date_end = date1.toString("yyyy-MM-dd")
+            #Выбираем коллекцию снимков  и фильтруем по общей облачности
+            cloud_filter = self.parameterAsBoolean(parameters, self.CLOUDFILTER, context)
+            if cloud_filter:
+                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness).filterBounds(aoi).map(self.filterCloudSentinel2)
+            else:
+                collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
+            #Определяем размер коллекции
+            col_size1 = collection.size().getInfo()
+            #Создадим медианный композит и обрежем по аои
+            dated_col = collection.filterDate(date_lo,date_hi)
+            col_size2 = dated_col.size().getInfo()
+            if col_size2 > 0:
+                im1 = dated_col.median().clipToCollection(aoi)
+                prefix = self.parameterAsString(parameters, self.PREFIX, context)
+                layer_name_1 = 'S2SRC_%s_%s'%(date_lo,date_hi)
+                if prefix:
+                    layer_name_1 = prefix + '-' +layer_name_1
+                #добавим на карту
+                self.addLayer(date_lo,im1,visParams,layer_name_1,is_visible)
 
         generate_singledate = self.parameterAsBoolean(parameters, self.SINGLEDATE, context)
         if generate_singledate:
-            for i in range(interval+1):
-                date_start = date1.addDays(-i).toString("yyyy-MM-dd")
-                date_end = date1.addDays(-i+1).toString("yyyy-MM-dd")
+            for i in range(day_delta):
+                date_lo = date_end.addDays(-i).toString("yyyy-MM-dd")
+                date_hi = date_end.addDays(-i+1).toString("yyyy-MM-dd")
                 collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
-                dated_col = collection.filterDate(date_start,date_end)
+                dated_col = collection.filterDate(date_lo,date_hi)
                 #im = collection.filterDate(date_start).mean()#median().clipToCollection(aoi)
                 col_size = dated_col.size().getInfo()
                 if col_size > 0:
                     im = dated_col.median().clipToCollection(aoi)
                     prefix = self.parameterAsString(parameters, self.PREFIX, context)
-                    layer_name = 'S2SRC_%s'%date_start
+                    layer_name = 'S2SRC_%s'%date_lo
                     if prefix:
                         layer_name = prefix + '-' +layer_name
-                    self.addLayer(date_start,im,visParams,layer_name,is_visible)
+                    self.addLayer(date_lo,im,visParams,layer_name,is_visible)
 
 #        #Парметры каналы, исходное изображение, АОИ, шкала (чем больше тем быстрее),перцентили)
 #        layer_name_2 = 'Sent-2-%s-%s-stretch'%(date_start,date_end)
@@ -216,7 +280,7 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             max_date = date
             min_date = date
 
-        return max_date, min_date
+        return min_date, max_date
 
     def bbox_for_ee_collection(self, bbox, in_crs, out_crs):
         proj_in = pyproj.Proj(init=in_crs.authid())
