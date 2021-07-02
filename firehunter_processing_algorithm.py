@@ -53,8 +53,10 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
     BAND1 = 'BAND1'
     BAND2 = 'BAND2'
     BAND3 = 'BAND3'
-    CLOUDFILTER = 'CLOUDFILTER'
-    CLOUD = 'CLOUD'
+    CLOUDFILTERC = 'CLOUDFILTERC'
+    CLOUDFILTERS = 'CLOUDFILTERS'
+    CLOUDS = 'CLOUDS'
+    CLOUDC = 'CLOUDC'
     VIS_MIN = 'VIS_MIN'
     VIS_MAX = 'VIS_MAX'
     VISIBLE = 'VISIBLE'
@@ -84,8 +86,10 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterEnum(self.BAND1, 'Band1 (red):', self.bandlist, defaultValue=12))
         self.addParameter(QgsProcessingParameterEnum(self.BAND2, 'Band2 (green):', self.bandlist, defaultValue=7))
         self.addParameter(QgsProcessingParameterEnum(self.BAND3, 'Band3 (blue):', self.bandlist, defaultValue=3))
-        self.addParameter(QgsProcessingParameterBoolean(self.CLOUDFILTER, 'Apply cloud filter.', defaultValue=True, optional=False))
-        self.addParameter(QgsProcessingParameterNumber(self.CLOUD, 'Cloudness:', defaultValue=1, optional=False, minValue=0, maxValue=100))
+        self.addParameter(QgsProcessingParameterBoolean(self.CLOUDFILTERS, 'Apply cloud filter for sinlelayers.', defaultValue=True, optional=False))
+        self.addParameter(QgsProcessingParameterNumber(self.CLOUDS, 'Cloudness for sinlelayers:', defaultValue=25, optional=False, minValue=0, maxValue=100))
+        self.addParameter(QgsProcessingParameterBoolean(self.CLOUDFILTERC, 'Apply cloud filter for composite layers.', defaultValue=True, optional=False))
+        self.addParameter(QgsProcessingParameterNumber(self.CLOUDC, 'Cloudness for composite layers:', defaultValue=1, optional=False, minValue=0, maxValue=100))
         self.addParameter(QgsProcessingParameterNumber(self.VIS_MIN, 'Vis_min:', defaultValue=30, optional=False, minValue=0, maxValue=10000))
         self.addParameter(QgsProcessingParameterNumber(self.VIS_MAX, 'Vis_max:', defaultValue=7000, optional=False, minValue=0, maxValue=10000))
         self.addParameter(QgsProcessingParameterBoolean(self.VISIBLE, 'Make result layer visible.', defaultValue=True, optional=False))
@@ -120,7 +124,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         feedback.pushConsoleInfo('Date interval: %(s)s : %(e)s'%{'s': date_start.toString("yyyy-MM-dd"), 'e':  date_end.toString("yyyy-MM-dd")})
            
         #Параметры визуализации
-        cloudiness = self.parameterAsInt(parameters, self.CLOUD, context)
+        cloudiness_single = self.parameterAsInt(parameters, self.CLOUDS, context)
+        cloudiness_composite = self.parameterAsInt(parameters, self.CLOUDC, context)
         combi = self.parameterAsEnum(parameters, self.COMBI, context)
         if combi == len(self.combinations)-1:
             r_band = self.bandlist[self.parameterAsEnum(parameters, self.BAND1, context)]
@@ -137,6 +142,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
         vis_gamma = 1.7
         visParams = {'bands': bands,'min': vis_min,'max': vis_max,'gamma': vis_gamma}
         is_visible = self.parameterAsBoolean(parameters, self.VISIBLE, context)
+        cloud_filter_s = self.parameterAsBoolean(parameters, self.CLOUDFILTERS, context)
+        cloud_filter_c = self.parameterAsBoolean(parameters, self.CLOUDFILTERC, context)
 
         generate_composite = self.parameterAsBoolean(parameters, self.COMPOSITE, context)
         if generate_composite:
@@ -144,9 +151,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             date_hi = date_end.toString("yyyy-MM-dd")
             #date_end = date1.toString("yyyy-MM-dd")
             #Выбираем коллекцию снимков  и фильтруем по общей облачности
-            cloud_filter = self.parameterAsBoolean(parameters, self.CLOUDFILTER, context)
-            if cloud_filter:
-                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness).filterBounds(aoi).map(self.filterCloudSentinel2)
+            if cloud_filter_c:
+                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness_composite).filterBounds(aoi).map(self.filterCloudSentinel2)
             else:
                 collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
             #Определяем размер коллекции
@@ -169,9 +175,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             date_hi = date1.addDays(-330).toString("yyyy-MM-dd")
             #date_end = date1.toString("yyyy-MM-dd")
             #Выбираем коллекцию снимков  и фильтруем по общей облачности
-            cloud_filter = self.parameterAsBoolean(parameters, self.CLOUDFILTER, context)
-            if cloud_filter:
-                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness).filterBounds(aoi).map(self.filterCloudSentinel2)
+            if cloud_filter_c:
+                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness_composite).filterBounds(aoi).map(self.filterCloudSentinel2)
             else:
                 collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
             #Определяем размер коллекции
@@ -194,9 +199,8 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             date_hi = date2.addDays(390).toString("yyyy-MM-dd")
             #date_end = date1.toString("yyyy-MM-dd")
             #Выбираем коллекцию снимков  и фильтруем по общей облачности
-            cloud_filter = self.parameterAsBoolean(parameters, self.CLOUDFILTER, context)
-            if cloud_filter:
-                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness).filterBounds(aoi).map(self.filterCloudSentinel2)
+            if cloud_filter_c:
+                collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness_composite).filterBounds(aoi).map(self.filterCloudSentinel2)
             else:
                 collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
             #Определяем размер коллекции
@@ -218,7 +222,10 @@ class firehunterProcessingAlgorithm(QgsProcessingAlgorithm):
             for i in range(day_delta):
                 date_lo = date_end.addDays(-i).toString("yyyy-MM-dd")
                 date_hi = date_end.addDays(-i+1).toString("yyyy-MM-dd")
-                collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
+                if cloud_filter_s:
+                    collection = ee.ImageCollection('COPERNICUS/S2').filterMetadata('CLOUDY_PIXEL_PERCENTAGE','not_greater_than', cloudiness_single).filterBounds(aoi).map(self.filterCloudSentinel2)
+                else:
+                    collection = ee.ImageCollection('COPERNICUS/S2').filterBounds(aoi)
                 dated_col = collection.filterDate(date_lo,date_hi)
                 #im = collection.filterDate(date_start).mean()#median().clipToCollection(aoi)
                 col_size = dated_col.size().getInfo()
