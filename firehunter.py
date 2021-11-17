@@ -1,19 +1,32 @@
 # -*- coding: utf-8 -*-
 
 import re, processing, os.path, datetime
-from qgis.PyQt.QtWidgets import QAction, QApplication
+import base64, hashlib, webbrowser, six
+from qgis.PyQt.QtWidgets import QDialog, QAction, QApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import Qgis, QgsApplication
+from qgis.PyQt.uic import loadUiType
 from .resources import *
 from .rectangleAreaTool import RectangleAreaTool
 from .captureCoord import CaptureCoord
 from .firehunter_processing_provider import firehunterProcessingProvider
+from .gee_auth import get_authorization_url, request_token, write_token
 from configparser import ConfigParser
+
+Ui_authDialogBase = loadUiType(os.path.join(os.path.dirname(__file__), 'gee_auth.ui'))[0]
+
+class authDialog (QDialog, Ui_authDialogBase):
+
+  def __init__(self, parent):
+    super().__init__()
+    self.iface = parent
+    self.setupUi(self)
 
 class FireHunter:
 
     def __init__(self, iface):
         self.iface = iface
+        self.canvas = iface.mapCanvas()
         self.menu = '&Fire Hunter'
         self.provider = None
         self.first_start = None
@@ -22,28 +35,34 @@ class FireHunter:
 
     def initGui(self):
         icon = QIcon(os.path.dirname(__file__) + '/firehunter.png')
-        self.rectangleAction = QAction(icon, 'Make a Sentinel-2 mosaic', self.iface.mainWindow())
+        self.rectangleAction = QAction(icon, 'Make a Sentinel-2 mosaic (parameter set I)', self.iface.mainWindow())
         self.rectangleAction.triggered.connect(self.runRectangle)
         self.rectangleAction.setEnabled(True)
         self.rectangleAction.setCheckable(True)
         self.toolbar.addAction(self.rectangleAction)
-        self.iface.addPluginToRasterMenu(self.menu, self.rectangleAction)
+        self.iface.addPluginToMenu(self.menu, self.rectangleAction)
 
         icon = QIcon(os.path.dirname(__file__) + '/twoday.png')
-        self.twodayAction = QAction(icon, 'Make a Sentinel-2 2-day mosaic', self.iface.mainWindow())
+        self.twodayAction = QAction(icon, 'Make a Sentinel-2 mosaic (parameter set II)', self.iface.mainWindow())
         self.twodayAction.triggered.connect(self.runTwoDay)
         self.twodayAction.setEnabled(True)
         self.twodayAction.setCheckable(True)
         self.toolbar.addAction(self.twodayAction)
-        self.iface.addPluginToRasterMenu(self.menu, self.twodayAction)
+        self.iface.addPluginToMenu(self.menu, self.twodayAction)
 
         icon = QIcon(os.path.dirname(__file__) + '/make-link.png')
-        self.linkAction = QAction(icon, 'Make a Sentinel-hub link', self.iface.mainWindow())
+        self.linkAction = QAction(icon, 'Get a Sentinel-hub link', self.iface.mainWindow())
         self.linkAction.triggered.connect(self.runMakeLink)
         self.linkAction.setEnabled(True)
         self.linkAction.setCheckable(True)
         self.toolbar.addAction(self.linkAction)
-        self.iface.addPluginToRasterMenu(self.menu, self.linkAction)
+        self.iface.addPluginToMenu(self.menu, self.linkAction)
+
+        icon = QIcon(os.path.join(os.path.dirname(__file__), "gee_auth.png"))
+        self.authAction = QAction(icon, 'Authenticate GEE', self.iface.mainWindow())
+        self.authAction.triggered.connect(self.authRun)
+        self.iface.addPluginToMenu(self.menu, self.authAction)
+        
 
         self.rectangleAreaTool = RectangleAreaTool(self.iface.mapCanvas(), self.rectangleAction)
         self.rectangleAreaTool.rectangleCreated.connect(self.run_r)
@@ -62,14 +81,38 @@ class FireHunter:
         #QgsApplication.processingRegistry().addProvider(self.makelink_provider)
 
     def unload(self):
-        self.iface.removePluginRasterMenu(self.menu, self.rectangleAction)
+        self.iface.removePluginMenu(self.menu, self.rectangleAction)
         self.iface.removeToolBarIcon(self.rectangleAction)
-        self.iface.removePluginRasterMenu(self.menu, self.linkAction)
+        self.iface.removePluginMenu(self.menu, self.linkAction)
         self.iface.removeToolBarIcon(self.linkAction)
-        self.iface.removePluginRasterMenu(self.menu, self.twodayAction)
+        self.iface.removePluginMenu(self.menu, self.twodayAction)
         self.iface.removeToolBarIcon(self.twodayAction)
+        self.iface.removePluginMenu(self.menu, self.authAction)
+        self.iface.unregisterMainWindowAction(self.authAction)
         QgsApplication.processingRegistry().removeProvider(self.firehunter_provider)
         del self.toolbar
+
+    def authRun(self):
+        code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b'=')
+        code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier).digest()).rstrip(b'=')
+        auth_url = get_authorization_url(code_challenge)
+        text = 'To authorize access needed by Earth Engine, you will be redirected to Google Earth engine site. \n Follow the instructions in opened web browser.\nThe authorization workflow will generate a code, which you should paste in the box below.'
+
+        dlg = authDialog(self.iface)
+        dlg.label.setText(text)
+
+        webbrowser.open_new(auth_url)
+
+        dlg.exec_()
+        if dlg.result():
+            auth_code = dlg.auth_code.toPlainText()
+            assert isinstance(auth_code, six.string_types)
+            token = request_token(auth_code.strip(), code_verifier)
+            write_token(token)
+            self.iface.messageBar().pushMessage("", "Authentication process completed successfully.", level=Qgis.Info, duration=4)
+        else:
+            self.iface.messageBar().pushMessage("", "Authentication failed. Unable to get authentication code.", level=Qgis.Critical, duration=4)
+
 
     def run_r(self, startX, startY, endX, endY):
         if startX == endX and startY == endY:
