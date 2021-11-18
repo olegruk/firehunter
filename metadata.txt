@@ -3,8 +3,8 @@ name=FireHunter
 qgisMinimumVersion=3.14
 description=This plugin creates a Sentinel-2 mosaic on an area given by a rectangle.
 about=This plugin creates a Sentinel-2 mosaic on an area given by a rectangle. The date interval for creating a mosaic is set by the number of days and the upper limit, which can be set manually or determined by the dates of hot spots that fall into the selected area. 
-version=0.2
-author=Oleg R.
+version=1
+author=R.
 email=olegaruk@yandex.ru
 
 #changelog=
