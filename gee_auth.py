@@ -15,6 +15,9 @@ from six.moves.urllib import request
 from six.moves.urllib.error import HTTPError
 
 
+#CLIENT_ID = ('703889014486-dakqb2d9ouco7g6jto46fe18ktb7pb9t.'
+#             'apps.googleusercontent.com')
+#CLIENT_SECRET = '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'
 CLIENT_ID = ('517222506229-vsmmajv00ul0bs7p89v5m89qs8eb9359.'
              'apps.googleusercontent.com')
 CLIENT_SECRET = 'RUP0RZ6e0pPhDzsqIJ7KlNd1'
@@ -25,7 +28,7 @@ SCOPES = [
 REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
 TOKEN_URI = 'https://accounts.google.com/o/oauth2/token'
 
-def get_authorization_url(code_challenge):
+def get_authorization_url1(code_challenge):
   """Returns a URL to generate an auth code."""
 
   return 'https://accounts.google.com/o/oauth2/auth?' + parse.urlencode({
@@ -36,6 +39,22 @@ def get_authorization_url(code_challenge):
       'code_challenge': code_challenge,
       'code_challenge_method': 'S256',
   })
+
+def get_authorization_url(code_challenge):
+  """Returns a URL to generate an auth code."""
+
+  request_args = {
+    'response_type': 'code',
+    'client_id': CLIENT_ID,
+    'redirect_uri': "http://localhost:8085/",
+    'scope': ' '.join(SCOPES),
+    'redirect_uri': REDIRECT_URI,
+    'access_type': 'offline'
+  }
+  auth_url = 'https://accounts.google.com/o/oauth2/auth/oauthchooseaccount?' \
+    + parse.urlencode(request_args)
+  return auth_url
+
 
 def request_token(auth_code, code_verifier):
   """Uses authorization code to request tokens."""

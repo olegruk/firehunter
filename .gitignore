@@ -8,3 +8,8 @@ __pycache__/mosaic_processing_provider.cpython-37.pyc
 __pycache__/osm_downloader.cpython-37.pyc
 __pycache__/rectangleAreaTool.cpython-37.pyc
 __pycache__/resources.cpython-37.pyc
+/.qt_for_python
+vscode
+ld_files
+age_bot/draft
+age_bot/temp
